@@ -2,6 +2,10 @@
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
+:: v1.1 - 2025-11-22
+:: This version has a new, more robust way of selecting the main subtitle.
+:: Instead of simply checking for an srt file of the same name as the video, it checks for any subtitle file of various extensions and chooses that.
+
 :: Configuration
 set "VIDEO_FILE=%~1"
 set "HEVC_PRESET=medium"
@@ -32,6 +36,8 @@ if "!EXT!" == ".mkv" (
     set "SUB_CODEC=subrip"
 ) else if "!EXT!" == ".mp4" (
     set "SUB_CODEC=mov_text"
+) else if "!EXT!"==".webm" (
+    set "SUB_CODEC=webvtt"
 ) else (
     set "SUB_CODEC=copy"
 )
@@ -52,8 +58,16 @@ if not "!TEMP_NAME!"=="" (
 set "OUTPUT_FILE=!OUTPUT_BASE!!EXT!"
 echo Output will be: !OUTPUT_FILE!
 
-:: Check if subtitle file with same name exists
-set "MAIN_SUB=!BASE_NAME!.srt"
+:: Check if subtitle file exists
+for %%s in (*.srt *.ass *.vtt) do (
+    set "SUB_EXT=%%~xs"
+    set "MAIN_SUB=%%s"
+    if "!SUB_EXT!"==".ass" (
+        if not "!EXT!"==".webm" (
+            set "SUB_CODEC=ssa"
+        )
+    )
+)
 if not exist "!MAIN_SUB!" (
     echo Warning: No subtitle file '!MAIN_SUB!' found in parent folder. Proceeding without default subtitle.
     set "MAIN_SUB="
@@ -62,11 +76,12 @@ if not exist "!MAIN_SUB!" (
 set "INPUTS_ABRIDGED=-i "%VIDEO_FILE%""
 set "MAPS_ABRIDGED=-map 0"
 if exist "!MAIN_SUB!" (
-    set "INPUTS_ABRIDGED=!INPUTS_ABRIDGED! -i "!MAIN_SUB!""
+    set "INPUTS_ABRIDGED=!INPUTS_ABRIDGED! -sub_charenc UTF-8 -i "!MAIN_SUB!""
     set "MAPS_ABRIDGED=!MAPS_ABRIDGED! -map 1"
 )
 
 :: Build ffpeg command
+if exist 
 set "FFMPEG_CMD=ffmpeg !INPUTS_ABRIDGED! !MAPS_ABRIDGED! -c:v libx265 -preset %HEVC_PRESET% -crf %HEVC_CRF% -c:a copy -c:s !SUB_CODEC! -metadata:s:s:0 language=eng -disposition:s:0 default -map_chapters 0 -map_metadata 0 !COMMENTS! -y "!OUTPUT_FILE!""
 
 :: Print the command
@@ -79,4 +94,3 @@ echo ================================================================
 echo.
 echo Copy and paste the above command into this CMD window to run it after inspection/tweaks ^(e.g., adjust -crf for quality^).
 echo.
-pause
