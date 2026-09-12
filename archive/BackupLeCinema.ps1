@@ -1,33 +1,36 @@
-# Save as Backup-LeCinema.ps1
 param (
     [string]$Source = "D:\Le Cinema",
-    [string]$Dest = "E:\Le Cinema",
-    [string]$CatalogFile = "catalog.csv",
-    [string]$DriveName = "ExternalDrive"
+    [string]$Dest1 = "E:\Le Cinema",  # For A–M
+    [string]$Dest2 = "F:\Le Cinema",  # For N–Z
+    [string]$CatalogFile = "catalog.csv"
 )
 
-Write-Host "🔍 Checking available space..."
-$freeBytes = (Get-PSDrive -Name ($Dest.Substring(0,1))).Free
-$requiredBytes = (Get-ChildItem -Recurse $Source | Measure-Object Length -Sum).Sum
+$files = Get-ChildItem -Path $Source -Recurse -File
 
-if ($freeBytes -lt $requiredBytes) {
-    Write-Host "⚠️ Not enough space. Required: $([math]::Round($requiredBytes/1MB,2)) MB, Free: $([math]::Round($freeBytes/1MB,2)) MB"
-    exit
+foreach ($file in $files) {
+    # Get the first letter of the filename (ignoring case)
+    $firstLetter = $file.Name.Substring(0,1).ToUpper()
+
+    # Decide which drive it belongs to
+    if ($firstLetter -ge "A" -and $firstLetter -le "M") {
+        $destRoot = $Dest1
+    } else {
+        $destRoot = $Dest2
+    }
+
+    # Construct the destination path
+    $relativePath = $file.FullName.Substring($Source.Length)
+    $destPath = Join-Path $destRoot $relativePath
+
+    # Ensure destination folder exists
+    $destDir = Split-Path $destPath -Parent
+    if (!(Test-Path $destDir)) { New-Item -ItemType Directory -Path $destDir | Out-Null }
+
+    # Copy only if new or changed
+    if (!(Test-Path $destPath) -or ($file.LastWriteTime -gt (Get-Item $destPath).LastWriteTime)) {
+        Copy-Item $file.FullName -Destination $destPath -Force
+        Write-Host "Copied: $($file.Name)"
+    }
 }
 
-Write-Host "📂 Starting backup..."
-robocopy $Source $Dest /E /XO /XN /R:1 /W:1 /MT:8 /LOG:backup.log /TEE
-
-Write-Host "🗂 Updating catalog..."
-$files = Get-ChildItem -Path $Dest -Recurse -File | Select-Object FullName, Length, LastWriteTime
-$files | ForEach-Object {
-    [PSCustomObject]@{
-        FileName      = $_.Name
-        FullPath      = $_.FullName
-        SizeBytes     = $_.Length
-        ModifiedDate  = $_.LastWriteTime
-        Drive         = $DriveName
-    }
-} | Export-Csv -Path $CatalogFile -NoTypeInformation -Append
-
-Write-Host "✅ Backup + Catalog complete!"
+Write-Host "✅ Split backup complete!"

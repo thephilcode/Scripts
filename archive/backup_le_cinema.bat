@@ -1,16 +1,23 @@
 @echo off
-set "SOURCE=D:\Le Cinema"
-set "DEST=E:\Le Cinema"
-set "CATALOG=catalog.csv"
-set "DRIVE=ExternalDrive"
+set "SRC=D:\Le Cinema"
+set "DEST1=E:\Le Cinema"
+set "DEST2=F:\Le Cinema"
+set "LOGFILE=D:backup_log.txt"
 
-echo Starting backup...
-robocopy "%SOURCE%" "%DEST%" /E /XO /XN /R:1 /W:1 /MT:8 /LOG:backup.log /TEE
-
-echo Updating catalog...
-(for /r "%DEST%" %%F in (*) do (
-    echo %%~nxF,%%~fF,%%~zF,%DATE% %TIME%,%DRIVE%
-)) >> "%CATALOG%"
-
-echo Done!
+for /r "%SRC%" %%F in (*) do (
+    set "name=%%~nF"
+    setlocal enabledelayedexpansion
+    set "first=!name:~0,1!"
+    for %%A in (A B C D E F G H I J K L M) do (
+        if /I "!first!"=="%%A" (
+            set "dest=%DEST1%"
+            goto :copy
+        )
+    )
+    set "dest=%DEST2%"
+:copy
+    robocopy "!SRC!" "!dest!" /LEV:1 /J /XD /XO /XX /IT /IM /X /V /IF "%%F" /R:2 /W:1 /MT:8 /TEE /LOG:"!LOGFILE!"
+    endlocal
+)
+echo Split backup done!
 pause
