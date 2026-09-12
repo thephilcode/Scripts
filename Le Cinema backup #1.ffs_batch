@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FreeFileSync XmlType="BATCH" XmlFormat="23">
+    <Notes/>
+    <Compare>
+        <Variant>TimeAndSize</Variant>
+        <Symlinks>Exclude</Symlinks>
+        <IgnoreTimeShift/>
+    </Compare>
+    <Synchronize>
+        <Changes>
+            <Left Create="right" Update="right" Delete="none"/>
+            <Right Create="none" Update="none" Delete="none"/>
+        </Changes>
+        <DeletionPolicy>RecycleBin</DeletionPolicy>
+        <VersioningFolder Style="Replace"/>
+    </Synchronize>
+    <Filter>
+        <Include>
+            <Item>*</Item>
+            <Item>_Anime</Item>
+        </Include>
+        <Exclude>
+            <Item>\System Volume Information\</Item>
+            <Item>\$Recycle.Bin\</Item>
+            <Item>\RECYCLE?\</Item>
+            <Item>\Recovery\</Item>
+            <Item>*\thumbs.db</Item>
+            <Item>M*</Item>
+            <Item>N*</Item>
+            <Item>O*</Item>
+            <Item>P*</Item>
+            <Item>Q*</Item>
+            <Item>R*</Item>
+            <Item>S*</Item>
+            <Item>T*</Item>
+            <Item>U*</Item>
+            <Item>V*</Item>
+            <Item>W*</Item>
+            <Item>X*</Item>
+            <Item>Y*</Item>
+            <Item>Z*</Item>
+            <Item>_Anime\M*</Item>
+            <Item>_Anime\N*</Item>
+            <Item>_Anime\O*</Item>
+            <Item>_Anime\P*</Item>
+            <Item>_Anime\Q*</Item>
+            <Item>_Anime\R*</Item>
+            <Item>_Anime\S*</Item>
+            <Item>_Anime\T*</Item>
+            <Item>_Anime\U*</Item>
+            <Item>_Anime\V*</Item>
+            <Item>_Anime\W*</Item>
+            <Item>_Anime\X*</Item>
+            <Item>_Anime\Y*</Item>
+            <Item>_Anime\Z*</Item>
+            <Item>_Movies</Item>
+            <Item>*\temp_hevc</Item>
+            <Item>*\reencode_log.txt</Item>
+            <Item>*.parts</Item>
+            <Item>*.bat</Item>
+            <Item>*.complete</Item>
+        </Exclude>
+        <SizeMin Unit="None">0</SizeMin>
+        <SizeMax Unit="None">0</SizeMax>
+        <TimeSpan Type="None">0</TimeSpan>
+    </Filter>
+    <FolderPairs>
+        <Pair>
+            <Left>D:\Le Cinema</Left>
+            <Right>E:\Le Cinema</Right>
+        </Pair>
+    </FolderPairs>
+    <Errors Ignore="true" Retry="0" Delay="5"/>
+    <PostSyncCommand Condition="Completion"/>
+    <LogFolder/>
+    <EmailNotification Condition="Always"/>
+    <GridViewType>Action</GridViewType>
+    <Batch>
+        <ProgressDialog Minimized="false" AutoClose="false"/>
+        <ErrorDialog>Show</ErrorDialog>
+        <PostSyncAction>None</PostSyncAction>
+    </Batch>
+</FreeFileSync>
