@@ -2,8 +2,9 @@
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
-:: v1.3 - 2025-12-07
-:: This version can also simply mux a video with it's subtitle file without reencoding it if its codec is already hevc.
+:: v1.4 - 2025-12-29
+:: This version sets the subtitle codec to copy if the input file is already mkv so as to maintain ass encoding.
+:: It also allows for passing a second parameter -f (for fast-track) immediately run the generated command.
 
 :: Configuration
 set "VIDEO_FILE=%~1"
@@ -26,12 +27,15 @@ if not exist "%VIDEO_FILE%" (
 
 :: Derive output filename with x264 -> x265 replacement (case-insensitive, no full lowering)
 set "BASE_NAME=%~n1"
+set "BASE_EXT=%~x1"
 :: Change to set "EXT=%~x1" to maintain the original video format
 set "EXT=.mkv"
 set "OUTPUT_BASE=%BASE_NAME%"
 set "SUB_CODEC="
 :: Set subtitle codec based on extension
-if "!EXT!" == ".mkv" (
+if "!BASE_EXT!"==".mkv" (
+    set "SUB_CODEC=copy"
+) else if "!EXT!" == ".mkv" (
     set "SUB_CODEC=subrip"
 ) else if "!EXT!" == ".mp4" (
     set "SUB_CODEC=mov_text"
@@ -66,11 +70,18 @@ for %%s in (*.srt *.ass *.vtt) do (
             set "SUB_CODEC=ssa"
         )
     )
+    if not "!SUB_EXT!"==".srt" (
+        if not "!SUB_EXT!"==".ass" (
+            set "SUB_CODEC=subrip"
+        )
+    ) else (
+        set "SUB_CODEC=copy"
+    )
     if "%%~ns"=="!BASE_NAME!" (
-        goto :build_command
-    ) else if "%%~ns"=="!OUTPUT_BASE!" (
         echo Matching subtitle found
         set /a matching_sub=1
+        goto :build_command
+    ) else if "%%~ns"=="!OUTPUT_BASE!" (
         goto :build_command
     )
 )
@@ -80,7 +91,7 @@ if not exist "!MAIN_SUB!" (
 )
 
 :build_command
-set "INPUTS_ABRIDGED=-i "%VIDEO_FILE%""
+set "INPUTS_ABRIDGED=-i "%VIDEO_FILE%" -sub_charenc UTF-8"
 set "MAPS_ABRIDGED=-map 0"
 
 :: Build ffpeg command
@@ -95,7 +106,7 @@ if exist "!MAIN_SUB!" (
     )
 
 ) else (
-    set "FFMPEG_CMD=ffmpeg !INPUTS_ABRIDGED! !MAPS_ABRIDGED! -c:v libx265 -preset %HEVC_PRESET% -crf %HEVC_CRF% -c:a copy -map_chapters 0 -map_metadata 0 !COMMENTS! -y "!OUTPUT_FILE!""
+    set "FFMPEG_CMD=ffmpeg !INPUTS_ABRIDGED! !MAPS_ABRIDGED! -c:v libx265 -preset %HEVC_PRESET% -crf %HEVC_CRF% -c:a copy -c:s !SUB_CODEC! -map_chapters 0 -map_metadata 0 !COMMENTS! -y "!OUTPUT_FILE!""
 
 )
 
@@ -107,5 +118,11 @@ echo ================================================================
 echo !FFMPEG_CMD!
 echo ================================================================
 echo.
-echo Copy and paste the above command into this CMD window to run it after inspection/tweaks ^(e.g., adjust -crf for quality^).
-echo.
+if not "%~2"=="" (
+    if "%~2"=="-f" (
+        call !FFMPEG_CMD!
+    )
+) else (
+    echo Copy and paste the above command into this CMD window to run it after inspection/tweaks ^(e.g., adjust -crf for quality^).
+    echo.
+)
