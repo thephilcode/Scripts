@@ -1,0 +1,24 @@
+# Maintained script library
+# Keep the repo focused on the active scripts.
+
+# Local generated outputs and media artifacts
+reencode_log.txt
+mux_log.txt
+temp_hevc/
+Muxed/
+*.log
+
+# Local catalogs and tool outputs
+catalog.csv
+catalog.xlsx
+*.csv
+*.xlsx
+
+# Local backup / archive content
+# archive is committed as part of the historical record.
+
+# Old or separate scripts not in the maintained active history
+
+# Other local-only support files
+
+
