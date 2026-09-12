@@ -2,14 +2,17 @@
 chcp 65001 >nul
 setlocal enabledelayedexpansion
 
-:: v2.8 - 2026.07.18 
-:: Add argument for only copying and reencoding first audio stream to output
-:: Fix script completion status being written to logfile instead of stdout
-:: Move hevc preset, crf, pixel format and other parameters to global variables
-:: Add .avi to video files to encode
-:: Improve codec tag replacement for filenames with more options for both video and audio codecs
-:: Add ending time to logs
-:: Add variable bitrate for audio streams
+:: v3.3 - 2026.09.06
+:: Add completion markers to avoid revalidating successfully encoded files
+:: Validate unmarked existing outputs by decoding all video and audio streams
+:: Compare actual audio/video packet end times to reject cleanly truncated outputs
+:: Calculate packet end times inline so validation stays in this script
+:: Add preservation of attached_pic type video streams
+:: Preserve all source stream types, including attachments and data streams
+:: Add comment to each reencoded video and audio stream instead of just the first ones
+:: Improve GalaxyTV name substitution by probing for meta title instead of searching filename
+:: Improve subtitle codec selection by probing for subtitle streams and setting arguments for each stream based on codec name
+:: Exit with errorlevel 1 if any encoding errors occurred, otherwise exit with errorlevel 0 instead of pausing at the end
 
 set "logfile=reencode_log.txt"
 set "HEVC_PRESET=medium"
@@ -33,16 +36,16 @@ for %%A in (%*) do (
     if /i "%%~A"=="-r"             set rescale=1 & set "scale_arg=-vf scale=1280:-2 "
     if /i "%%~A"=="--force"        set force_reencode=1
     if /i "%%~A"=="-f"             set force_reencode=1
-    if /i "%%~A"=="-s"             set single_audio=1
+    if /i "%%~A"=="--skip"        set skip_existing=1
+    if /i "%%~A"=="-s"             set skip_existing=1
 )
 
 if defined force_reencode echo Forced re-encoding of HEVC videos enabled >> "%logfile%" 
 if defined rescale echo Rescaling to 720P enabled >> "%logfile%"
-if defined single_audio echo Reencoding and copying only first audio stream >> "%logfile%"
+if defined skip_existing echo Skipping re-encoding of existing HEVC videos enabled >> "%logfile%"
 
 set "meta_title="
 set "meta_comments=-metadata comment="Re-encoded by ScreenPhantom 📺👻""
-set "meta_comments=!meta_comments! -metadata:s:v:0 comment="Re-encoded by ScreenPhantom 📺👻""
 
 REM Loop 1: Encode all to temp, skipping hevc files
 for %%f in (*.avi *.mkv *.mp4) do (
@@ -63,41 +66,43 @@ for %%f in (*.avi *.mkv *.mp4) do (
         set "newname=!newname:1080P=720P!"
     )
     set "newname=!newname!.mkv"
-    :: Set subtitle codec
-    if "!ext!"==".mkv" (
-        set "subcodec=copy"
-    ) else (
-        set "subcodec=subrip"
+    
+    REM Build subtitle stream arguments
+    set "sub_args="
+    set /a sub_stream_idx=0
+    for /f "usebackq tokens=*" %%d in (`ffprobe -v error -select_streams s -show_entries stream^=index -of default^=noprint_wrappers^=1:nokey^=1 "%%f" 2^>nul`) do (
+        set "this_subcodec=copy"
+        if not %%d == "ass" ( if not %%d == "subrip" ( set "this_subcodec=subrip" ) )
+        set "sub_args=!sub_args! -c:s:!sub_stream_idx! !this_subcodec!"
+        set /a sub_stream_idx+=1
     )
+    if not defined !sub_args! ( set "sub_args=-c:s copy" )
 
     REM Build dynamic bitrate arguments for each audio stream based on channel layout
-    set "audio_maps="
     set "audio_args="
-    set /a stream_idx=0
-    if defined single_audio (
-        set "audio_maps=-map 0:a:0"
-        for /f "usebackq tokens=*" %%d in (`ffprobe -v error -select_streams a:0 -show_entries stream^=channels -of default^=noprint_wrappers^=1:nokey^=1 "%%f" 2^>nul`) do (
-            set "this_bitrate=96k"
-            REM Set bitrate to 192k if audio is surround sound
-            if %%d GEQ 6 (
-                set "this_bitrate=192k"
-            )
-            set "audio_args=-c:a:0 libopus -vbr on -b:a:0 !this_bitrate! -ac:a:0 %%d"
+    set /a audio_stream_idx=0
+    for /f "usebackq tokens=*" %%d in (`ffprobe -v error -select_streams a -show_entries stream^=channels -of default^=noprint_wrappers^=1:nokey^=1 "%%f" 2^>nul`) do (
+        set "this_bitrate=96k"
+        REM Set bitrate to 192k if audio is surround sound
+        if %%d GEQ 6 (
+            set "this_bitrate=192k"
         )
-    ) else (
-        for /f "usebackq tokens=*" %%d in (`ffprobe -v error -select_streams a -show_entries stream^=channels -of default^=noprint_wrappers^=1:nokey^=1 "%%f" 2^>nul`) do (
-            set "this_bitrate=96k"
-            REM Set bitrate to 192k if audio is surround sound
-            if %%d GEQ 6 (
-                set "this_bitrate=192k"
-            )
-            set "audio_args=!audio_args! -c:a:!stream_idx! libopus -vbr on -b:a:!stream_idx! !this_bitrate! -ac:a:!stream_idx! %%d"
-            set "audio_maps=!audio_maps! -map 0:a:!stream_idx!"
-            set /a stream_idx+=1
-        )
+        set "audio_args=!audio_args! -c:a:!audio_stream_idx! libopus -vbr on -b:a:!audio_stream_idx! !this_bitrate! -ac:a:!audio_stream_idx! %%d"
+        set "meta_comments=!meta_comments! -metadata:s:a:!audio_stream_idx! comment="Re-encoded by ScreenPhantom 📺👻""
+        set /a audio_stream_idx+=1
     )
-    if !audio_maps! == "" (
-        set "audio_maps=-map 0:a:?"
+
+    REM Preserve codec of video streams with disposition attached_pic if any
+    set "video_args="
+    set "video_stream_idx=0"
+    for /f "usebackq tokens=*" %%d in (`ffprobe -v error -select_streams v -show_entries disposition^=attached_pic -of default^=noprint_wrappers^=1:nokey^=1 "%%f" 2^>nul`) do (
+        if %%d equ 1 (
+            set "video_args=!video_args! -c:v:!video_stream_idx! copy"
+        ) else (
+            set "video_args=!video_args! !scale_arg!-c:v:!video_stream_idx! libx265 -preset !HEVC_PRESET! -crf !HEVC_CRF! !PIX_FORMAT! !HEVC_PARAMS!"
+            set "meta_comments=!meta_comments! -metadata:s:v:!video_stream_idx! comment="Re-encoded by ScreenPhantom 📺👻""
+        )
+        set /a video_stream_idx+=1
     )
 
     REM Skip if file is already hevc (unless forcing)
@@ -111,48 +116,70 @@ for %%f in (*.avi *.mkv *.mp4) do (
     if !is_hevc! equ 1 (
         echo Skipping !orig!!ext! - already processed >> "%logfile%"
     ) else (
-        REM Check if output exists and has same duration as input
+        REM Check if output exists and was completely written and valid
         set "skip_encode=0"
-        if exist "temp_hevc\!newname!" (
-            REM Get input duration
-            for /f "usebackq tokens=*" %%d in (`ffprobe -v error -show_entries format^=duration -of default^=noprint_wrappers^=1:nokey^=1 "!orig!!ext!" 2^>nul`) do set "input_duration=%%d"
-            REM Get output duration
-            for /f "usebackq tokens=*" %%d in (`ffprobe -v error -show_entries format^=duration -of default^=noprint_wrappers^=1:nokey^=1 "temp_hevc\!newname!" 2^>nul`) do set "output_duration=%%d"
-            REM Compare durations using PowerShell (allow 0.5 second tolerance for rounding)
-            if defined input_duration if defined output_duration (
-                set "ps_in=!input_duration!"
-                set "ps_out=!output_duration!"
-                powershell -command "$in=[double]$env:ps_in; $out=[double]$env:ps_out; $diff=[Math]::Abs($in - $out); if ($diff -le 0.5) { exit 0 } else { exit 1 }" >nul 2>&1
-                if !errorlevel! equ 0 (
+        if defined skip_existing (
+            set "skip_encode=1"
+            echo Skipping re-encoding of !orig!!ext! due to --skip argument >> "%logfile%"
+        ) else (
+            if exist "temp_hevc\!newname!" (
+                if exist "temp_hevc\!newname!.complete" (
                     set "skip_encode=1"
-                    echo Skipping !orig!!ext! - output exists with matching duration >> "%logfile%"
+                    echo Skipping !orig!!ext! - completion marker found >> "%logfile%"
                 ) else (
-                    echo Output file exists but duration mismatch, will re-encode >> "%logfile%"
+                    REM Legacy or interrupted output: decode every video and audio stream
+                    echo Checking existing temp_hevc\!newname! by decoding it fully >> "%logfile%"
+                    ffmpeg -hide_banner -loglevel error -xerror -err_detect explode ^
+                        -i "temp_hevc\!newname!" ^
+                        -map 0:v? -map 0:a? ^
+                        -f null NUL >nul 2>&1
+
+                    if !errorlevel! neq 0 (
+                        set "skip_encode=0"
+                        del "temp_hevc\!newname!.complete" 2>nul
+                        echo Existing temp_hevc\!newname! failed decoding, re-encoding >> "%logfile%"
+                    ) else (
+                        set "MEDIA_SOURCE=!CD!\!orig!!ext!"
+                        set "MEDIA_OUTPUT=!CD!\temp_hevc\!newname!"
+                        powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; function Get-End([string]$p) { $max=[double]::NegativeInfinity; foreach($s in 'v','a') { $lines=& ffprobe -v error -select_streams $s -show_entries packet=pts_time,duration_time -of csv=p=0 -i $p 2>$null; foreach($line in $lines) { $f=$line -split ','; [double]$pts=0; [double]$dur=0; $culture=[Globalization.CultureInfo]::InvariantCulture; $hasPts=[double]::TryParse($f[0],[Globalization.NumberStyles]::Float,$culture,[ref]$pts); $hasDuration=[double]::TryParse($f[1],[Globalization.NumberStyles]::Float,$culture,[ref]$dur); if($f.Count -ge 2 -and $hasPts -and $hasDuration) { $max=[Math]::Max($max,$pts+$dur) } } }; if([double]::IsNegativeInfinity($max)) { throw 'No video or audio packet timestamps found' }; return $max }; $sourceEnd=Get-End $env:MEDIA_SOURCE; $outputEnd=Get-End $env:MEDIA_OUTPUT; $difference=[Math]::Abs($sourceEnd-$outputEnd); Write-Output ('packet-end source={0:F3}s output={1:F3}s difference={2:F3}s' -f $sourceEnd,$outputEnd,$difference); exit [int]($difference -gt 0.5)" >> "%logfile%" 2>&1
+                        if !errorlevel! equ 0 (
+                            set "skip_encode=1"
+                            >"temp_hevc\!newname!.complete" echo complete
+                            echo Existing temp_hevc\!newname! passed decode and duration validation, skipping re-encoding >> "%logfile%"
+                        ) else (
+                            set "skip_encode=0"
+                            del "temp_hevc\!newname!.complete" 2>nul
+                            echo Existing temp_hevc\!newname! failed packet-end validation, re-encoding >> "%logfile%"
+                        )
+                    )
                 )
-                set "ps_in="
-                set "ps_out="
             )
         )
-        echo !newname! | findstr /i "GalaxyTV" >nul && set "meta_title=-metadata title="!newname:~0,-4!" "
+        for /F "usebackq tokens=*" %%d in (`ffprobe -v error -select_streams v -show_entries format_tags^=title -of default^=noprint_wrappers^=1:nokey^=1 "!orig!!ext!" 2^>nul`) do (
+            set current_meta_title="%%d"
+            echo !current_meta_title! | findstr /i "GalaxyTV" >nul && set "meta_title=-metadata title="!current_meta_title:x264=x265!" "
+        )
         if !skip_encode! equ 0 (
             if exist "!orig!.srt" (
                 echo Encoding !orig!!ext! and muxing !orig!.srt to temp_hevc\!newname! >> "%logfile%"
-                ffmpeg -i "!orig!!ext!" -i "!orig!.srt" -map 0:v !audio_maps! -map 0:s? -map 1 -map_chapters 0 -map_metadata 0 !scale_arg!-c:v libx265 -preset !HEVC_PRESET! -crf !HEVC_CRF! !PIX_FORMAT! !HEVC_PARAMS! !audio_args! -c:s !subcodec! -movflags +faststart -metadata:s:s:0 language=eng !meta_title!!meta_comments! "temp_hevc\!newname!" -y
+                ffmpeg -i "!orig!!ext!" -i "!orig!.srt" -map 0 -map 1 -map_chapters 0 -map_metadata 0 !video_args! !audio_args! !!sub_args! -c:t copy -c:d copy -movflags +faststart -metadata:s:s:0 language=eng !meta_title!!meta_comments! "temp_hevc\!newname!" -y
                 
                 if !errorlevel! neq 0 (
                     echo ERROR encoding !orig!!ext! and muxing !orig!.srt >> "%logfile%"
                     set "error_occurred=1"
                 ) else (
+                    >"temp_hevc\!newname!.complete" echo complete
                     echo Successfully encoded and muxed !orig!!ext! and !orig!.srt to !newname! >> "%logfile%"
                 ) 
             ) else (
                 echo Encoding !orig!!ext! to temp_hevc\!newname! >> "%logfile%"
-                ffmpeg -i "!orig!!ext!" -map 0:v !audio_maps! -map 0:s? -map_chapters 0 -map_metadata 0 !scale_arg!-c:v libx265 -preset !HEVC_PRESET! -crf !HEVC_CRF! !PIX_FORMAT! !HEVC_PARAMS! !audio_args! -c:s !subcodec! -movflags +faststart !meta_title!!meta_comments! "temp_hevc\!newname!" -y
-                
+                ffmpeg -i "!orig!!ext!" -map 0 -map_chapters 0 -map_metadata 0 !video_args! !audio_args! !!sub_args! -c:t copy -c:d copy -movflags +faststart !meta_title!!meta_comments! "temp_hevc\!newname!" -y
+
                 if !errorlevel! neq 0 (
                     echo ERROR encoding !orig!!ext! >> "%logfile%"
                     set "error_occurred=1"
                 ) else (
+                    >"temp_hevc\!newname!.complete" echo complete
                     echo Successfully encoded !orig!!ext! to !newname! >> "%logfile%"
                 )
             )
@@ -197,6 +224,7 @@ if %error_occurred%==0 (
                     del "!orig!.srt"
                 )
                 move "temp_hevc\!newname!" ./
+                del "temp_hevc\!newname!.complete" 2>nul
                 echo Replaced !orig!!ext! with !newname! >> "%logfile%"
             )
         )
@@ -209,4 +237,4 @@ if %error_occurred%==0 (
 )
 echo Ending HEVC re-encoding at %date% %time% >> "%logfile%"
 echo Done. Log saved to %logfile%.
-pause
+exit /b %error_occurred%
