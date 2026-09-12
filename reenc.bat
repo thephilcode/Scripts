@@ -2,17 +2,30 @@
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
-:: v1.5 - 2026-02-17
-:: This version has improved replacement logic for "x264" and "X264" in the filename, and better handling of subtitle codecs based on the output format. 
-:: It also includes more robust setting of subtitle dispositions, and a more informative output of the generated FFmpeg command.
-:: Added x265-params and yuv420p10le pixel format options for slightly faster and better compression.
+:: v1.6 - 2026-04-16
+:: This version adds better parsing arguments with the addition of the rescale and skip-encode arguments for rescaling and skipping reencoding of videos. 
+:: It also removes the pmode=1:pme=1 hevc parameters because they add 1-3% compression at the cost of possibly increasing CPU usage significantly, and were thus deemed not worth the tradeoff.
+:: Improve codec tag replacement for filenames with more options for both video and audio codecs
+:: Add variable bitrate for audio streams
+
+set "scale_arg="
+
+:: Parsing arguments
+for %%A in (%*) do (
+    if /i "%%~A"=="--rescale"      set rescale=1 & set "scale_arg=-vf scale=1280:-2 "
+    if /i "%%~A"=="-r"             set rescale=1 & set "scale_arg=-vf scale=1280:-2 "
+    if /i "%%~A"=="--fast-forward" set fast_forward=1
+    if /i "%%~A"=="-f"             set fast_forward=1
+    if /i "%%~A"=="--skip-encode"  set skip_encode=1
+    if /i "%%~A"=="-s"             set skip_encode=1
+)
 
 :: Configuration
 set "VIDEO_FILE=%~1"
 set "HEVC_PRESET=medium"
 set "HEVC_CRF=28"
 set "PIX_FORMAT=-pix_fmt yuv420p10le"
-set "HEVC_PARAMS=-x265-params bframes=4:rc-lookahead=40:ref=4:pmode=1:pme=1"
+set "HEVC_PARAMS=-x265-params bframes=4:rc-lookahead=40:ref=4"
 set "COMMENTS=-metadata comment="Re-encoded by ScreenPhantom 📺👻""
 set "COMMENTS=!COMMENTS! -metadata:s:v:0 comment="Re-encoded by ScreenPhantom 📺👻""
 
@@ -52,11 +65,20 @@ if "!BASE_EXT!"==".mkv" (
 set "TEMP_NAME=%BASE_NAME%"
 set "TEMP_NAME=!TEMP_NAME:x264=x265!"
 set "TEMP_NAME=!TEMP_NAME:X264=X265!"
+set "TEMP_NAME=!TEMP_NAME:H264=H265!"
+set "TEMP_NAME=!TEMP_NAME:h264=h265!"
 set "TEMP_NAME=!TEMP_NAME:AVC=HEVC!"
+set "TEMP_NAME=!TEMP_NAME:avc=hevc!"
+set "TEMP_NAME=!TEMP_NAME:AAC=OPUS!"
+set "TEMP_NAME=!TEMP_NAME:aac=opus!"
+set "TEMP_NAME=!TEMP_NAME:DDP=OPUS!"
+set "TEMP_NAME=!TEMP_NAME:ddp=opus!"
+set "TEMP_NAME=!TEMP_NAME:FLAC=OPUS!"
+set "TEMP_NAME=!TEMP_NAME:flac=opus!"
 
 set "OUTPUT_BASE=!TEMP_NAME!"
 if "!OUTPUT_BASE!"=="!BASE_NAME!" (
-    set "OUTPUT_BASE=!BASE_NAME!_HEVC"
+    set "OUTPUT_BASE=!BASE_NAME!.reencoded"
 )
 set "OUTPUT_FILE=!OUTPUT_BASE!!EXT!"
 echo Output will be: !OUTPUT_FILE!
@@ -105,29 +127,30 @@ if exist "!MAIN_SUB!" (
     set "INPUTS_ABRIDGED=!INPUTS_ABRIDGED! -sub_charenc UTF-8 -i "!MAIN_SUB!""
     set "MAPS_ABRIDGED=!MAPS_ABRIDGED! -map 1"
 
-    set "FFMPEG_CMD=ffmpeg !INPUTS_ABRIDGED! !MAPS_ABRIDGED! -c:v libx265 -preset %HEVC_PRESET% -crf %HEVC_CRF% %PIX_FORMAT% %HEVC_PARAMS% -c:a libopus -c:s !SUB_CODEC! -metadata:s:s:0 language=eng !SUB_DISP! -map_chapters 0 -map_metadata 0 !COMMENTS! -y "!OUTPUT_FILE!""
-
-    if "%OUTPUT_FILE%"=="%VIDEO_FILE%" if defined matching_sub (
-        set "FFMPEG_CMD=ffmpeg !INPUTS_ABRIDGED! !MAPS_ABRIDGED! -c:v copy -c:a libopus -c:s !SUB_CODEC! -metadata:s:s:0 language=eng !SUB_DISP! -map_chapters 0 -map_metadata 0 !COMMENTS! -y "!OUTPUT_FILE!""
+    set "FFMPEG_CMD=ffmpeg !INPUTS_ABRIDGED! !MAPS_ABRIDGED! !scale_arg!-c:v libx265 -preset %HEVC_PRESET% -crf %HEVC_CRF% %PIX_FORMAT% %HEVC_PARAMS% -c:a libopus -vbr on -c:s !SUB_CODEC! -metadata:s:s:0 language=eng !SUB_DISP! -map_chapters 0 -map_metadata 0 !COMMENTS! -y "!OUTPUT_FILE!""
+    
+    if !skip_encode! equ 1 (
+        set "FFMPEG_CMD=ffmpeg !INPUTS_ABRIDGED! !MAPS_ABRIDGED! -c:v copy -c:a copy -vbr on -c:s !SUB_CODEC! -metadata:s:s:0 language=eng !SUB_DISP! -map_chapters 0 -map_metadata 0 !COMMENTS! -y "!BASE_NAME!.muxed!EXT!""
     )
 
 ) else (
-    set "FFMPEG_CMD=ffmpeg !INPUTS_ABRIDGED! !MAPS_ABRIDGED! -c:v libx265 -preset %HEVC_PRESET% -crf %HEVC_CRF% %PIX_FORMAT% %HEVC_PARAMS% -c:a libopus -c:s !SUB_CODEC! -map_chapters 0 -map_metadata 0 !COMMENTS! -y "!OUTPUT_FILE!""
-
+    set "FFMPEG_CMD=ffmpeg !INPUTS_ABRIDGED! !MAPS_ABRIDGED! !scale_arg!-c:v libx265 -preset %HEVC_PRESET% -crf %HEVC_CRF% %PIX_FORMAT% %HEVC_PARAMS% -c:a libopus -vbr on -c:s !SUB_CODEC! -map_chapters 0 -map_metadata 0 !COMMENTS! -y "!OUTPUT_FILE!""
 )
 
 :: Print the command
 echo.
 echo ================================================================
-echo Generated FFmpeg command ^(reencoding to HEVC^):
+if !skip_encode! equ 1 (
+    echo Generated FFmpeg command ^(muxing streams to single file^):
+) else (
+    echo Generated FFmpeg command ^(reencoding to HEVC^):
+)
 echo ================================================================
 echo !FFMPEG_CMD!
 echo ================================================================
 echo.
-if not "%~2"=="" (
-    if "%~2"=="-f" (
-        call !FFMPEG_CMD!
-    )
+if !fast_forward! equ 1 (
+    call !FFMPEG_CMD!
 ) else (
     echo Copy and paste the above command into this CMD window to run it after inspection/tweaks ^(e.g., adjust -crf for quality^).
     echo.
