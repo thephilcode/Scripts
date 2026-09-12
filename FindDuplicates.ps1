@@ -1,25 +1,23 @@
-# Save as: Find-Duplicates.ps1
 param (
     [string]$Folder1 = "F:\Le Cinema",
     [string]$Folder2 = "G:\Le Cinema",
     [string]$OutputFile = "duplicates.txt"
 )
 
-$files1 = Get-ChildItem -Path $Folder1 -Recurse -File | Select-Object Name, FullName
-$files2 = Get-ChildItem -Path $Folder2 -Recurse -File | Select-Object Name, FullName
+# Get all files recursively from both folders
+$files1 = Get-ChildItem -Path $Folder1 -Recurse -File
+$files2 = Get-ChildItem -Path $Folder2 -Recurse -File
 
-$dupFiles = Compare-Object -ReferenceObject $files1 -DifferenceObject $files2 -Property Name -IncludeEqual -ExcludeDifferent | Where-Object { $_.SideIndicator -eq "==" }
+# Build relative paths like Series\Season\Episode
+$rel1 = $files1 | ForEach-Object { $_.FullName.Substring($Folder1.Length+1) }
+$rel2 = $files2 | ForEach-Object { $_.FullName.Substring($Folder2.Length+1) }
 
-$dupFiles | ForEach-Object {
-    "Duplicate File: $($_.Name)"
+# Compare relative paths to find duplicates
+$duplicates = $rel1 | Where-Object { $rel2 -contains $_ }
+
+# Output duplicates
+$duplicates | ForEach-Object {
+    "Duplicate File: $_"
 } | Out-File -FilePath $OutputFile
 
-# Also check for duplicate folder names
-$folders1 = Get-ChildItem -Path $Folder1 -Recurse -Directory | Select-Object Name, FullName
-$folders2 = Get-ChildItem -Path $Folder2 -Recurse -Directory | Select-Object Name, FullName
-
-$dupFolders = Compare-Object -ReferenceObject $folders1 -DifferenceObject $folders2 -Property Name -IncludeEqual -ExcludeDifferent | Where-Object { $_.SideIndicator -eq "==" }
-
-$dupFolders | ForEach-Object {
-    "Duplicate Folder: $($_.Name)"
-} | Out-File -FilePath $OutputFile -Append
+Write-Host "✅ Duplicate check complete. Results in $OutputFile"
