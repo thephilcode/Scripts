@@ -2,8 +2,8 @@
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
-:: v1.10 - 2025-11-12
-:: This revision fixes the previous issue of splitting subtitle names that had spaces in them.
+:: v1.20 - 2025-11-22
+:: This revision specifies the subtitle character encoding to avoid errors, adds emojis to the metadata comments, and removes the unnecessary pause at the end.
 
 rem --------------------------------------------------------------
 rem  CONFIG
@@ -34,8 +34,10 @@ set "tmp=!BASE!"
 :replace
 if defined tmp (
     set "tmp=!tmp:x264=x265!"
+    set "tmp=!tmp:AVC=HEVC!"
     if "!tmp!"=="!BASE!" (
         set "tmp=!tmp:X264=X265!"
+        set "tmp=!tmp:AVC=HEVC!"
         if "!tmp!"=="!BASE!" (
             set "OUTBASE=!BASE!-x265"
             goto :done_replace
@@ -73,7 +75,7 @@ set "SUB_COUNT=1"
 
 rem ---- add main subtitle (track 0) ---------------------------------------
 if defined MAIN_SUB (
-    set "INPUTS=!INPUTS! -i "!MAIN_SUB!""
+    set "INPUTS=!INPUTS! -sub_charenc UTF-8 -i "!MAIN_SUB!""
     set "MAPS=!MAPS! -map !SUB_COUNT!"
     set "METADATA=!METADATA! -metadata:s:s:0 language=eng"
     set "DISPOSITIONS=!DISPOSITIONS! -disposition:s:0 default"
@@ -120,8 +122,8 @@ for %%F in (!SRT_LIST!) do (
 )
 
 rem ---- comment metadata ---------------------------------------------------
-set "COMMENTS=-metadata comment="Re-encoded and muxed by ScreenPhantom""
-set "COMMENTS=!COMMENTS! -metadata:s:v:0 comment="Re-encoded and muxed by ScreenPhantom""
+set "COMMENTS=-metadata comment="Re-encoded and muxed by ScreenPhantom 📺👻""
+set "COMMENTS=!COMMENTS! -metadata:s:v:0 comment="Re-encoded and muxed by ScreenPhantom 📺👻""
 
 rem ---- final command ------------------------------------------------------
 set "FFMPEG_CMD=ffmpeg !INPUTS! !CODECS! !MAPS! !METADATA! !DISPOSITIONS! -map_metadata 0 -map_chapters 0 !COMMENTS! -y "!OUTPUT_FILE!""
@@ -134,4 +136,3 @@ echo ================================================================
 echo !FFMPEG_CMD!
 echo ================================================================
 echo.
-pause
