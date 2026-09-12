@@ -1,0 +1,32 @@
+&& — conditional AND (cmd.exe): run the right-hand command only if the left-hand command succeeds (exit code 0).
+Example: dir existingDir && echo Success
+
+|| — conditional OR (cmd.exe): run the right-hand command only if the left-hand command fails (non-zero exit code).
+Example: dir missingDir || echo Failed
+
+& — sequential separator: run both commands one after the other regardless of success/failure.
+Example: echo One & echo Two
+
+| — pipe: send stdout of the left command to stdin of the right command.
+Example: dir | findstr "txt"
+
+Redirection operators:
+
+> — overwrite stdout to file (command > file)
+
+>> — append stdout to file (command >> file)
+
+2> redirect stderr (command 2> errors.txt)
+
+2>&1 merge stderr into stdout (command >out.txt 2>&1)
+
+^ — escape / line-continuation character: prevents special meaning of the next character or lets a long command continue on the next physical line.
+Example: echo Hello ^& World
+
+Parentheses and grouping: use ( ... ) to group multiple commands for a single conditional or redirection. You can combine operators, e.g.:
+command1 && (command2 & command3)
+command1 && command2 || command3 — evaluated left-to-right; short-circuits based on exit codes.
+
+Other useful control constructs (commands, not single-character operators): if, for /f, call, goto — use them when you need more complex branching than operators provide.
+
+Quick testing tips (Windows CMD): try simple examples above in cmd.exe to see how exit codes affect execution (use echo %errorlevel% to inspect the exit code).

