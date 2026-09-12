@@ -2,8 +2,9 @@
 chcp 65001 >nul
 setlocal enabledelayedexpansion
 
-:: v2.5 - 2025-12-29
-:: Skips unnecessary re-encoding of subtitles if input files are already mkv
+:: v2.6 - 2026-02-24
+:: Add rescaling option, handling of GalaxyTV title metadata, yuv420p10le pixel format 
+:: and tweaks to x265-params for slightly faster reencoding and better compression.
 
 set "logfile=reencode_log.txt"
 echo Starting HEVC re-encoding at %date% %time% > "%logfile%"
@@ -14,24 +15,54 @@ if not exist "temp_hevc\" (
     echo temp_hevc already exists, skipping creation >> "%logfile%"
 )
 set "error_occurred=0"
+set "scale_arg="
+
+:: simple argument parsing so we don't repeat code for "%~1" and "%~2"
+for %%A in (%*) do (
+    if /i "%%~A"=="--rescale"      set rescale=1 & set "scale_arg=-vf scale=1280:-2 "
+    if /i "%%~A"=="-r"             set rescale=1 & set "scale_arg=-vf scale=1280:-2 "
+    if /i "%%~A"=="--force"        set force_reencode=1
+    if /i "%%~A"=="-f"             set force_reencode=1
+)
+
+if defined force_reencode echo Forced re-encoding of HEVC videos enabled >> "%logfile%" 
+if defined rescale echo Rescaling to 720P enabled >> "%logfile%"
+
+set "meta_title="
+set "meta_comments=-metadata comment="Re-encoded by ScreenPhantom 📺👻""
+set "meta_comments=!meta_comments! -metadata:s:v:0 comment="Re-encoded by ScreenPhantom 📺👻""
 
 REM Loop 1: Encode all to temp, skipping hevc files
-for %%f in (*.mp4 *.mkv) do (
+for %%f in (*.mkv *.mp4) do (
     set "orig=%%~nf"
     set "ext=%%~xf"
     set "newname=!orig:AV1=HEVC!"
     set "newname=!newname:AVC=HEVC!"
     set "newname=!newname:x264=x265!"
-    set "newname=!newname:h264=h265!.mkv"
+    set "newname=!newname:h264=h265!"
+    set "newname=!newname:AAC=OPUS!"
+    set "newname=!newname:aac=opus!"
+    if defined rescale (
+        set "newname=!newname:1080p=720p!"
+        set "newname=!newname:1080P=720P!"
+    )
+    set "newname=!newname!.mkv"
     :: Set subtitle codec
     if "!ext!"==".mkv" (
         set "subcodec=copy"
     ) else (
         set "subcodec=subrip"
     )
-    REM Skip if file is already hevc
-    ffprobe -c:v hevc -i "%%f" 2>nul 1>nul
-    if !errorlevel! equ 0 (
+
+    REM Skip if file is already hevc (unless forcing)
+    set "is_hevc=0"
+    if not defined force_reencode (
+        ffprobe -c:v hevc -i "%%f" 2>nul 1>nul
+        if !errorlevel! equ 0 (
+            set "is_hevc=1"
+        )
+    )
+    if !is_hevc! equ 1 (
         echo Skipping !orig!!ext! - already processed >> "%logfile%"
     ) else (
         REM Check if output exists and has same duration as input
@@ -56,10 +87,12 @@ for %%f in (*.mp4 *.mkv) do (
                 set "ps_out="
             )
         )
+        echo !newname! | findstr /i "GalaxyTV" >nul && set "meta_title=-metadata title="!newname:~0,-4!" "
         if !skip_encode! equ 0 (
             if exist "!orig!.srt" (
                 echo Encoding !orig!!ext! and muxing !orig!.srt to temp_hevc\!newname! >> "%logfile%"
-                ffmpeg -i "!orig!!ext!" -sub_charenc UTF-8 -i "!orig!.srt" -map 0:v -map 0:a -map 0:s? -map 1 -map_chapters 0 -map_metadata 0 -c:v libx265 -preset medium -crf 28 -x265-params "bframes=4:rc-lookahead=40:ref=4" -c:a copy -c:s !subcodec! -movflags +faststart -metadata:s:s:0 language=eng -metadata comment="Re-encoded by ScreenPhantom 📺👻" -metadata:s:v:0 comment="Re-encoded by ScreenPhantom 📺👻" "temp_hevc\!newname!" -y
+                ffmpeg -i "!orig!!ext!" -i "!orig!.srt" -map 0:v -map 0:a -map 0:s? -map 1 -map_chapters 0 -map_metadata 0 !scale_arg!-c:v libx265 -preset medium -crf 28 -pix_fmt yuv420p10le -x265-params "bframes=4:rc-lookahead=40:ref=4:pmode=1:pme=1" -c:a libopus -c:s !subcodec! -movflags +faststart -metadata:s:s:0 language=eng !meta_title!!meta_comments! "temp_hevc\!newname!" -y
+                
                 if !errorlevel! neq 0 (
                     echo ERROR encoding !orig!!ext! and muxing !orig!.srt >> "%logfile%"
                     set "error_occurred=1"
@@ -68,7 +101,8 @@ for %%f in (*.mp4 *.mkv) do (
                 ) 
             ) else (
                 echo Encoding !orig!!ext! to temp_hevc\!newname! >> "%logfile%"
-                ffmpeg -i "!orig!!ext!" -sub_charenc UTF-8 -map 0:v -map 0:a -map 0:s? -map_chapters 0 -map_metadata 0 -c:v libx265 -preset medium -crf 28 -x265-params "bframes=4:rc-lookahead=40:ref=4" -c:a copy -c:s !subcodec! -movflags +faststart -metadata comment="Re-encoded by ScreenPhantom 📺👻" -metadata:s:v:0 comment="Re-encoded by ScreenPhantom 📺👻" "temp_hevc\!newname!" -y
+                ffmpeg -i "!orig!!ext!" -map 0:v -map 0:a -map 0:s? -map_chapters 0 -map_metadata 0 !scale_arg!-c:v libx265 -preset medium -crf 28 -pix_fmt yuv420p10le -x265-params "bframes=4:rc-lookahead=40:ref=4:pmode=1:pme=1" -c:a libopus -c:s !subcodec! -movflags +faststart !meta_title!!meta_comments! "temp_hevc\!newname!" -y
+                
                 if !errorlevel! neq 0 (
                     echo ERROR encoding !orig!!ext! >> "%logfile%"
                     set "error_occurred=1"
@@ -83,17 +117,30 @@ for %%f in (*.mp4 *.mkv) do (
 REM If no errors, proceed to replace
 if %error_occurred%==0 (
     REM Loop 2: Delete originals and move new ones
-    for %%f in (*.mp4 *.mkv) do (
+    for %%f in (*.mkv *.mp4) do (
         set "orig=%%~nf"
         set "ext=%%~xf"
-        ffprobe -c:v hevc -i "%%f" 2>nul 1>nul
-        if !errorlevel! equ 0 (
+        set "is_hevc=0"
+        if not defined force_reencode (
+            ffprobe -c:v hevc -i "%%f" 2>nul 1>nul
+            if !errorlevel! equ 0 (
+                set "is_hevc=1"
+            )
+        )
+        if !is_hevc! equ 1 (
             echo Skipping replacement for !orig!!ext! >> "%logfile%"
         ) else (
             set "newname=!orig:AV1=HEVC!"
             set "newname=!newname:AVC=HEVC!"
             set "newname=!newname:x264=x265!"
-            set "newname=!newname:h264=h265!!ext!"
+            set "newname=!newname:h264=h265!"
+            set "newname=!newname:AAC=OPUS!"
+            set "newname=!newname:aac=opus!"
+            if !rescale! equ 1 (
+                set "newname=!newname:1080p=720p!"
+                set "newname=!newname:1080P=720P!"
+            )
+            set "newname=!newname!!ext!"
             if exist "temp_hevc\!newname!" (
                 del "!orig!!ext!"
                 if exist "!orig!.srt" (
