@@ -2,9 +2,8 @@
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
-:: v1.1 - 2025-11-22
-:: This version has a new, more robust way of selecting the main subtitle.
-:: Instead of simply checking for an srt file of the same name as the video, it checks for any subtitle file of various extensions and chooses that.
+:: v1.3 - 2025-12-07
+:: This version can also simply mux a video with it's subtitle file without reencoding it if its codec is already hevc.
 
 :: Configuration
 set "VIDEO_FILE=%~1"
@@ -67,22 +66,38 @@ for %%s in (*.srt *.ass *.vtt) do (
             set "SUB_CODEC=ssa"
         )
     )
+    if "%%~ns"=="!BASE_NAME!" (
+        goto :build_command
+    ) else if "%%~ns"=="!OUTPUT_BASE!" (
+        echo Matching subtitle found
+        set /a matching_sub=1
+        goto :build_command
+    )
 )
 if not exist "!MAIN_SUB!" (
-    echo Warning: No subtitle file '!MAIN_SUB!' found in parent folder. Proceeding without default subtitle.
+    echo Warning: No subtitle file found in parent folder. Proceeding without default subtitle.
     set "MAIN_SUB="
 )
 
+:build_command
 set "INPUTS_ABRIDGED=-i "%VIDEO_FILE%""
 set "MAPS_ABRIDGED=-map 0"
-if exist "!MAIN_SUB!" (
-    set "INPUTS_ABRIDGED=!INPUTS_ABRIDGED! -sub_charenc UTF-8 -i "!MAIN_SUB!""
-    set "MAPS_ABRIDGED=!MAPS_ABRIDGED! -map 1"
-)
 
 :: Build ffpeg command
-if exist 
-set "FFMPEG_CMD=ffmpeg !INPUTS_ABRIDGED! !MAPS_ABRIDGED! -c:v libx265 -preset %HEVC_PRESET% -crf %HEVC_CRF% -c:a copy -c:s !SUB_CODEC! -metadata:s:s:0 language=eng -disposition:s:0 default -map_chapters 0 -map_metadata 0 !COMMENTS! -y "!OUTPUT_FILE!""
+if exist "!MAIN_SUB!" (
+    set "INPUTS_ABRIDGED=!INPUTS_ABRIDGED! -i "!MAIN_SUB!""
+    set "MAPS_ABRIDGED=!MAPS_ABRIDGED! -map 1"
+
+    set "FFMPEG_CMD=ffmpeg !INPUTS_ABRIDGED! !MAPS_ABRIDGED! -c:v libx265 -preset %HEVC_PRESET% -crf %HEVC_CRF% -c:a copy -c:s !SUB_CODEC! -metadata:s:s:0 language=eng -disposition:s:0 default -map_chapters 0 -map_metadata 0 !COMMENTS! -y "!OUTPUT_FILE!""
+
+    if "%OUTPUT_FILE%"=="%VIDEO_FILE%" if defined matching_sub (
+        set "FFMPEG_CMD=ffmpeg !INPUTS_ABRIDGED! !MAPS_ABRIDGED! -c:v copy -c:a copy -c:s !SUB_CODEC! -metadata:s:s:0 language=eng -disposition:s:0 default -map_chapters 0 -map_metadata 0 !COMMENTS! -y "!OUTPUT_FILE!""
+    )
+
+) else (
+    set "FFMPEG_CMD=ffmpeg !INPUTS_ABRIDGED! !MAPS_ABRIDGED! -c:v libx265 -preset %HEVC_PRESET% -crf %HEVC_CRF% -c:a copy -map_chapters 0 -map_metadata 0 !COMMENTS! -y "!OUTPUT_FILE!""
+
+)
 
 :: Print the command
 echo.
