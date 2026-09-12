@@ -2,14 +2,17 @@
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
-:: v1.4 - 2025-12-29
-:: This version sets the subtitle codec to copy if the input file is already mkv so as to maintain ass encoding.
-:: It also allows for passing a second parameter -f (for fast-track) immediately run the generated command.
+:: v1.5 - 2026-02-17
+:: This version has improved replacement logic for "x264" and "X264" in the filename, and better handling of subtitle codecs based on the output format. 
+:: It also includes more robust setting of subtitle dispositions, and a more informative output of the generated FFmpeg command.
+:: Added x265-params and yuv420p10le pixel format options for slightly faster and better compression.
 
 :: Configuration
 set "VIDEO_FILE=%~1"
 set "HEVC_PRESET=medium"
 set "HEVC_CRF=28"
+set "PIX_FORMAT=-pix_fmt yuv420p10le"
+set "HEVC_PARAMS=-x265-params bframes=4:rc-lookahead=40:ref=4:pmode=1:pme=1"
 set "COMMENTS=-metadata comment="Re-encoded by ScreenPhantom 📺👻""
 set "COMMENTS=!COMMENTS! -metadata:s:v:0 comment="Re-encoded by ScreenPhantom 📺👻""
 
@@ -47,17 +50,14 @@ if "!BASE_EXT!"==".mkv" (
 
 :: Check and replace first "x264" or "X264"
 set "TEMP_NAME=%BASE_NAME%"
-:replace_loop
-if not "!TEMP_NAME!"=="" (
-    set "TEMP_NAME=!TEMP_NAME:x264=x265!"
-    if "!TEMP_NAME!"=="%BASE_NAME%" (
-        set "TEMP_NAME=!TEMP_NAME:X264=X265!"
-        set "TEMP_NAME=!TEMP_NAME:AVC=HEVC!"
-    )
-    set "OUTPUT_BASE=!TEMP_NAME!"
-    goto :done_replace
+set "TEMP_NAME=!TEMP_NAME:x264=x265!"
+set "TEMP_NAME=!TEMP_NAME:X264=X265!"
+set "TEMP_NAME=!TEMP_NAME:AVC=HEVC!"
+
+set "OUTPUT_BASE=!TEMP_NAME!"
+if "!OUTPUT_BASE!"=="!BASE_NAME!" (
+    set "OUTPUT_BASE=!BASE_NAME!_HEVC"
 )
-:done_replace
 set "OUTPUT_FILE=!OUTPUT_BASE!!EXT!"
 echo Output will be: !OUTPUT_FILE!
 
@@ -77,6 +77,12 @@ for %%s in (*.srt *.ass *.vtt) do (
     ) else (
         set "SUB_CODEC=copy"
     )
+    echo %%~ns | findstr ".HI" >nul && set "SUB_DISP=-disposition:s:0 hearing_impaired"
+    echo %%~ns | findstr "SDH" >nul && set "SUB_DISP=-disposition:s:0 hearing_impaired"
+    echo %%~ns | findstr /i "forced" >nul && set "SUB_DISP=-disposition:s:0 forced"
+    if not defined SUB_DISP (
+        set "SUB_DISP=-disposition:s:0 default"
+    )
     if "%%~ns"=="!BASE_NAME!" (
         echo Matching subtitle found
         set /a matching_sub=1
@@ -91,22 +97,22 @@ if not exist "!MAIN_SUB!" (
 )
 
 :build_command
-set "INPUTS_ABRIDGED=-i "%VIDEO_FILE%" -sub_charenc UTF-8"
+set "INPUTS_ABRIDGED=-i "%VIDEO_FILE%""
 set "MAPS_ABRIDGED=-map 0"
 
 :: Build ffpeg command
 if exist "!MAIN_SUB!" (
-    set "INPUTS_ABRIDGED=!INPUTS_ABRIDGED! -i "!MAIN_SUB!""
+    set "INPUTS_ABRIDGED=!INPUTS_ABRIDGED! -sub_charenc UTF-8 -i "!MAIN_SUB!""
     set "MAPS_ABRIDGED=!MAPS_ABRIDGED! -map 1"
 
-    set "FFMPEG_CMD=ffmpeg !INPUTS_ABRIDGED! !MAPS_ABRIDGED! -c:v libx265 -preset %HEVC_PRESET% -crf %HEVC_CRF% -c:a copy -c:s !SUB_CODEC! -metadata:s:s:0 language=eng -disposition:s:0 default -map_chapters 0 -map_metadata 0 !COMMENTS! -y "!OUTPUT_FILE!""
+    set "FFMPEG_CMD=ffmpeg !INPUTS_ABRIDGED! !MAPS_ABRIDGED! -c:v libx265 -preset %HEVC_PRESET% -crf %HEVC_CRF% %PIX_FORMAT% %HEVC_PARAMS% -c:a libopus -c:s !SUB_CODEC! -metadata:s:s:0 language=eng !SUB_DISP! -map_chapters 0 -map_metadata 0 !COMMENTS! -y "!OUTPUT_FILE!""
 
     if "%OUTPUT_FILE%"=="%VIDEO_FILE%" if defined matching_sub (
-        set "FFMPEG_CMD=ffmpeg !INPUTS_ABRIDGED! !MAPS_ABRIDGED! -c:v copy -c:a copy -c:s !SUB_CODEC! -metadata:s:s:0 language=eng -disposition:s:0 default -map_chapters 0 -map_metadata 0 !COMMENTS! -y "!OUTPUT_FILE!""
+        set "FFMPEG_CMD=ffmpeg !INPUTS_ABRIDGED! !MAPS_ABRIDGED! -c:v copy -c:a libopus -c:s !SUB_CODEC! -metadata:s:s:0 language=eng !SUB_DISP! -map_chapters 0 -map_metadata 0 !COMMENTS! -y "!OUTPUT_FILE!""
     )
 
 ) else (
-    set "FFMPEG_CMD=ffmpeg !INPUTS_ABRIDGED! !MAPS_ABRIDGED! -c:v libx265 -preset %HEVC_PRESET% -crf %HEVC_CRF% -c:a copy -c:s !SUB_CODEC! -map_chapters 0 -map_metadata 0 !COMMENTS! -y "!OUTPUT_FILE!""
+    set "FFMPEG_CMD=ffmpeg !INPUTS_ABRIDGED! !MAPS_ABRIDGED! -c:v libx265 -preset %HEVC_PRESET% -crf %HEVC_CRF% %PIX_FORMAT% %HEVC_PARAMS% -c:a libopus -c:s !SUB_CODEC! -map_chapters 0 -map_metadata 0 !COMMENTS! -y "!OUTPUT_FILE!""
 
 )
 
