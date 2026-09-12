@@ -2,8 +2,10 @@ param (
     [string]$VideoFile
 )
 
-# 1.0
-# mux_subs_reencode.ps1
+# 1.1
+
+# Fallback to args for drag-and-drop
+if (-not $VideoFile -and $args.Count -gt 0) { $VideoFile = $args[0] }
 
 # Configuration
 $SubsDir = "Subs"
@@ -13,14 +15,18 @@ $HevcCrf = 23
 # Check if video file is provided and exists
 if (-not $VideoFile) {
     Write-Error "No video file provided! Run with: .\mux_subs_reencode.ps1 `"your_video.mkv`""
-    pause
+    Read-Host "Press Enter to close"
     exit 1
 }
-if (-not (Test-Path $VideoFile)) {
-    Write-Error "Video file '$VideoFile' not found! Make sure to run from the parent folder."
-    pause
+# Resolve full path for better detection
+$ResolvedVideo = Resolve-Path $VideoFile -ErrorAction SilentlyContinue
+if (-not $ResolvedVideo) {
+    Write-Error "Video file '$VideoFile' not found! Make sure to run from the parent folder. Current dir: $(Get-Location)"
+    Read-Host "Press Enter to close"
     exit 1
 }
+$VideoFile = $ResolvedVideo.Path  # Use resolved path
+Write-Host "Debug: Detected video file as '$VideoFile'" -ForegroundColor Cyan
 
 # Derive output filename with x264 -> x265 replacement (case-insensitive)
 $BaseName = [System.IO.Path]::GetFileNameWithoutExtension($VideoFile)
@@ -44,7 +50,7 @@ if (-not (Test-Path $MainSub)) {
 # Check if Subs folder exists
 if (-not (Test-Path $SubsDir)) {
     Write-Error "Subtitles folder '$SubsDir' not found!"
-    pause
+    Read-Host "Press Enter to close"
     exit 1
 }
 
