@@ -70,13 +70,13 @@ for %%f in (*.avi *.mkv *.mp4) do (
     REM Build subtitle stream arguments
     set "sub_args="
     set /a sub_stream_idx=0
-    for /f "usebackq tokens=*" %%d in (`ffprobe -v error -select_streams s -show_entries stream^=index -of default^=noprint_wrappers^=1:nokey^=1 "%%f" 2^>nul`) do (
+    for /f "usebackq tokens=*" %%d in (`ffprobe -v error -select_streams s -show_entries stream^=codec_name -of default^=noprint_wrappers^=1:nokey^=1 "%%f" 2^>nul`) do (
         set "this_subcodec=copy"
         if not %%d == "ass" ( if not %%d == "subrip" ( set "this_subcodec=subrip" ) )
         set "sub_args=!sub_args! -c:s:!sub_stream_idx! !this_subcodec!"
         set /a sub_stream_idx+=1
     )
-    if not defined !sub_args! ( set "sub_args=-c:s copy" )
+    if not defined sub_args ( set "sub_args=-c:s copy" )
 
     REM Build dynamic bitrate arguments for each audio stream based on channel layout
     set "audio_args="
