@@ -72,7 +72,9 @@ for %%f in (*.avi *.mkv *.mp4) do (
     set /a sub_stream_idx=0
     for /f "usebackq tokens=*" %%d in (`ffprobe -v error -select_streams s -show_entries stream^=codec_name -of default^=noprint_wrappers^=1:nokey^=1 "%%f" 2^>nul`) do (
         set "this_subcodec=copy"
-        if not %%d == "ass" ( if not %%d == "subrip" ( set "this_subcodec=subrip" ) )
+        if %%d == "ssa" ( 
+            set "this_subcodec=ass" 
+        ) else ( if not %%d == "ass" ( if not %%d == "subrip" ( set "this_subcodec=subrip" ) ) )
         set "sub_args=!sub_args! -c:s:!sub_stream_idx! !this_subcodec!"
         set /a sub_stream_idx+=1
     )
