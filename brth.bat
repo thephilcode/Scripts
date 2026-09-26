@@ -72,9 +72,9 @@ for %%f in (*.avi *.mkv *.mp4) do (
     set /a sub_stream_idx=0
     for /f "usebackq tokens=*" %%d in (`ffprobe -v error -select_streams s -show_entries stream^=codec_name -of default^=noprint_wrappers^=1:nokey^=1 "%%f" 2^>nul`) do (
         set "this_subcodec=copy"
-        if %%d == "ssa" ( 
-            set "this_subcodec=ass" 
-        ) else ( if not %%d == "ass" ( if not %%d == "subrip" ( set "this_subcodec=subrip" ) ) )
+        if /i "%%d" == "ssa" ( set "this_subcodec=ass" )
+        if /i "%%d" == "mov_text" ( set "this_subcodec=subrip" )
+        if /i "%%d" == "webvtt" ( set "this_subcodec=subrip" )
         set "sub_args=!sub_args! -c:s:!sub_stream_idx! !this_subcodec!"
         set /a sub_stream_idx+=1
     )
@@ -164,7 +164,7 @@ for %%f in (*.avi *.mkv *.mp4) do (
         if !skip_encode! equ 0 (
             if exist "!orig!.srt" (
                 echo Encoding !orig!!ext! and muxing !orig!.srt to temp_hevc\!newname! >> "%logfile%"
-                ffmpeg -i "!orig!!ext!" -i "!orig!.srt" -map 0 -map 1 -map_chapters 0 -map_metadata 0 !video_args! !audio_args! !!sub_args! -c:t copy -c:d copy -movflags +faststart -metadata:s:s:0 language=eng !meta_title!!meta_comments! "temp_hevc\!newname!" -y
+                ffmpeg -i "!orig!!ext!" -i "!orig!.srt" -map 0 -map 1 -map_chapters 0 -map_metadata 0 !video_args! !audio_args! !sub_args! -c:t copy -c:d copy -movflags +faststart -metadata:s:s:0 language=eng !meta_title!!meta_comments! "temp_hevc\!newname!" -y
                 
                 if !errorlevel! neq 0 (
                     echo ERROR encoding !orig!!ext! and muxing !orig!.srt >> "%logfile%"
@@ -175,7 +175,7 @@ for %%f in (*.avi *.mkv *.mp4) do (
                 ) 
             ) else (
                 echo Encoding !orig!!ext! to temp_hevc\!newname! >> "%logfile%"
-                ffmpeg -i "!orig!!ext!" -map 0 -map_chapters 0 -map_metadata 0 !video_args! !audio_args! !!sub_args! -c:t copy -c:d copy -movflags +faststart !meta_title!!meta_comments! "temp_hevc\!newname!" -y
+                ffmpeg -i "!orig!!ext!" -map 0 -map_chapters 0 -map_metadata 0 !video_args! !audio_args! !sub_args! -c:t copy -c:d copy -movflags +faststart !meta_title!!meta_comments! "temp_hevc\!newname!" -y
 
                 if !errorlevel! neq 0 (
                     echo ERROR encoding !orig!!ext! >> "%logfile%"
