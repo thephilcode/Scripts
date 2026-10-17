@@ -2,11 +2,9 @@
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
-:: v2.1 - 2026-02-14
-:: This update includes a minor improvement in the handling of hearing_impaired subtitles across languages.
-:: Added yuv420p10le pixel format option and x265-params for slightly faster reencoding and better compression.
-:: Improve codec tag replacement for filenames with more options for both video and audio codecs
-:: Add variable bitrate for audio streams
+:: v2.2 - 2026-10-17
+:: Sort subtitle tracks with English first, then alphabetically by language code.
+:: Locate subtitles beside the video and use relative paths in the generated FFmpeg command.
 
 set "SUBS_DIR=Subs"
 set "HEVC_PRESET=medium"
@@ -22,6 +20,7 @@ if "%VIDEO_FILE%"=="" (
     echo    %~nx0 "C:\path\to\your movie.mkv"
     pause & exit /b 1
 )
+set "VIDEO_DIR=%~dp1"
 if not exist "%VIDEO_FILE%" (
     echo *** ERROR: File not found: "%VIDEO_FILE%"
     pause & exit /b 1
@@ -54,18 +53,21 @@ if defined tmp (
 )
 :done_replace
 set "OUTPUT_FILE=!OUTBASE!!EXT!"
+rem set "OUTPUT_PATH=%CD%\!OUTPUT_FILE!"
+set "OUTPUT_PATH=!OUTPUT_FILE!"
 echo Output: !OUTPUT_FILE!
 
 rem ---- Main subtitle (same name) ----------------------------------
-set "MAIN_SUB=!BASE!.srt"
+set "MAIN_SUB=%~dpn1.srt"
 if exist "!MAIN_SUB!" (
-    set "MAIN_SUB=!MAIN_SUB!"
+    set "MAIN_SUB=!BASE!.srt"
 ) else (
     set "MAIN_SUB="
     echo Warning: No main subtitle "!BASE!.srt"
 )
 
-rem ---- Subs folder ------------------------------------------------
+rem ---- Subs folder beside the video -------------------------------
+set "SUBS_DIR=!VIDEO_DIR!Subs"
 if not exist "!SUBS_DIR!\" (
     echo *** ERROR: Folder "!SUBS_DIR!" not found.
     pause & exit /b 1
@@ -90,10 +92,10 @@ if defined MAIN_SUB (
     echo !FNAME! | findstr /i "forced" >nul && set "DISPOSITIONS=!DISPOSITIONS! -disposition:s:0 forced"
 )
 
-rem ---- Collect all .srt files from Subs (quoted) ------------------
+rem ---- Collect all .srt files from Subs (sorted: English first, then by 3-letter code) ---
 set "SRT_LIST="
-for /f "delims=" %%A in ('dir /b /on "!SUBS_DIR!\*.srt" 2^>nul') do (
-    set "SRT_LIST=!SRT_LIST! "!SUBS_DIR!\%%A""
+for /f "usebackq delims=" %%A in (`powershell -NoProfile -Command "Get-ChildItem -LiteralPath $env:SUBS_DIR -Filter '*.srt' -File -ErrorAction Stop | ForEach-Object { $n=$_.BaseName; $lang='und'; if($n.Length -ge 3){ $lang=$n.Substring($n.Length-3,3).ToLower() }; if($lang -eq 'srt'){ $lang='und' }; if($n.ToUpper().EndsWith('.HI')){ if($n -match '(?i)eng'){ $lang='eng' } else { if($n.Length -ge 6){ $lang=$n.Substring($n.Length-6,3).ToLower() } else { $lang='und' } } }; if($n -match '(?i)English'){ $lang='eng' }; [PSCustomObject]@{Path=(Join-Path 'Subs' $_.Name);Lang=$lang;Name=$_.Name} } | Sort-Object @{Expression={ if($_.Lang -eq 'eng'){0}else{1}}}, Lang, Name | ForEach-Object { $_.Path }"`) do (
+    set "SRT_LIST=!SRT_LIST! "%%A""
 )
 
 rem ---- Process each subtitle --------------------------------------
@@ -161,10 +163,11 @@ for %%F in (!SRT_LIST!) do (
 
 rem ---- Global comment ---------------------------------------------
 set "COMMENTS=-metadata comment="Re-encoded ^& muxed by ScreenPhantom 📺👻""
-set "COMMENTS=!COMMENTS! -metadata:s:v:0 comment="Re-encoded ^& muxed by ScreenPhantom 📺👻""
+set "COMMENTS=!COMMENTS! -metadata:s:v:0 comment="Re-encoded by ScreenPhantom 📺👻""
+set "COMMENTS=!COMMENTS! -metadata:s:a:0 comment="Re-encoded by ScreenPhantom 📺👻""
 
 rem ---- Final command ----------------------------------------------
-set "FFMPEG_CMD=ffmpeg !INPUTS! !CODECS! !MAPS! !METADATA! !DISPOSITIONS! -map_metadata 0 -map_chapters 0 !COMMENTS! -y "!OUTPUT_FILE!""
+set "FFMPEG_CMD=ffmpeg !INPUTS! !CODECS! !MAPS! !METADATA! !DISPOSITIONS! -map_metadata 0 -map_chapters 0 !COMMENTS! -y "!OUTPUT_PATH!""
 
 rem ---- Show command -----------------------------------------------
 echo.
