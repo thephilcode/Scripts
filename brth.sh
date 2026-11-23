@@ -20,7 +20,7 @@ scale_arg=()
 
 for a in "$@"; do
     case "$a" in
-        --rescale|-r) rescale=1; scale_arg=(-vf scale=1280:-2);;
+        --rescale|-r) rescale=1; scale_arg=(-vf scale=-2:720);;
         --force|-f) force_reencode=1;;
         --skip|-s) skip_existing=1;;
     esac

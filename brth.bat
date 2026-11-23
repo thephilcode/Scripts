@@ -2,7 +2,7 @@
 chcp 65001 >nul
 setlocal enabledelayedexpansion
 
-:: v3.3 - 2026.09.06
+:: v3.4 - 2026.11.23
 :: Add completion markers to avoid revalidating successfully encoded files
 :: Validate unmarked existing outputs by decoding all video and audio streams
 :: Compare actual audio/video packet end times to reject cleanly truncated outputs
@@ -13,6 +13,7 @@ setlocal enabledelayedexpansion
 :: Improve GalaxyTV name substitution by probing for meta title instead of searching filename
 :: Improve subtitle codec selection by probing for subtitle streams and setting arguments for each stream based on codec name
 :: Exit with errorlevel 1 if any encoding errors occurred, otherwise exit with errorlevel 0 instead of pausing at the end
+:: Change scale argument to scale=-2:720 for better compatibility with 16:9 aspect ratio videos
 
 set "logfile=reencode_log.txt"
 set "HEVC_PRESET=medium"
@@ -32,8 +33,8 @@ set "scale_arg="
 
 :: simple argument parsing so we don't repeat code for "%~1" and "%~2"
 for %%A in (%*) do (
-    if /i "%%~A"=="--rescale"      set rescale=1 & set "scale_arg=-vf scale=1280:-2 "
-    if /i "%%~A"=="-r"             set rescale=1 & set "scale_arg=-vf scale=1280:-2 "
+    if /i "%%~A"=="--rescale"      set rescale=1 & set "scale_arg=-vf scale=-2:720 "
+    if /i "%%~A"=="-r"             set rescale=1 & set "scale_arg=-vf scale=-2:720 "
     if /i "%%~A"=="--force"        set force_reencode=1
     if /i "%%~A"=="-f"             set force_reencode=1
     if /i "%%~A"=="--skip"        set skip_existing=1

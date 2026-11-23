@@ -2,19 +2,20 @@
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
-:: v1.6 - 2026-04-16
+:: v1.6 - 2026-11-23
 :: This version adds better parsing arguments with the addition of the rescale and skip-encode arguments for rescaling and skipping reencoding of videos. 
 :: It also removes the pmode=1:pme=1 hevc parameters because they add 1-3% compression at the cost of possibly increasing CPU usage significantly, and were thus deemed not worth the tradeoff.
 :: Improve codec tag replacement for filenames with more options for both video and audio codecs
 :: Add variable bitrate for audio streams
 :: Add comment to audio stream
+:: Change scale argument to scale=-2:720 for better compatibility with 16:9 aspect ratio videos
 
 set "scale_arg="
 
 :: Parsing arguments
 for %%A in (%*) do (
-    if /i "%%~A"=="--rescale"      set rescale=1 & set "scale_arg=-vf scale=1280:-2 "
-    if /i "%%~A"=="-r"             set rescale=1 & set "scale_arg=-vf scale=1280:-2 "
+    if /i "%%~A"=="--rescale"      set rescale=1 & set "scale_arg=-vf scale=-2:720 "
+    if /i "%%~A"=="-r"             set rescale=1 & set "scale_arg=-vf scale=-2:720 "
     if /i "%%~A"=="--fast-forward" set fast_forward=1
     if /i "%%~A"=="-f"             set fast_forward=1
     if /i "%%~A"=="--skip-encode"  set skip_encode=1

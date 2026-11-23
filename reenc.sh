@@ -5,7 +5,7 @@ set -u
 scale_arg=()
 for a in "$@"; do
     case "$a" in
-        --rescale|-r) rescale=1; scale_arg=(-vf scale=1280:-2);;
+        --rescale|-r) rescale=1; scale_arg=(-vf scale=-2:720);;
         --fast-forward|-f) fast_forward=1;;
         --skip-encode|-s) skip_encode=1;;
     esac
