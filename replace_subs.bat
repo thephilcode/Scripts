@@ -17,7 +17,7 @@ for %%F in (*.mkv *.mp4) do (
 	if exist !matching_sub! (
         echo Replacing HdmvSub subtitle in %%F with subrip subtitle !matching_sub! in temp\%%F >> "%logfile%"
         echo Replacing HdmvSub subtitle in %%F with subrip subtitle !matching_sub! in temp\%%F
-        ffmpeg -i "%%F" -i "!matching_sub!" -map 0:v? -map 0:a? -map 1:s -map_metadata 0 -map_chapters 0 -c copy "temp\%%F"
+        ffmpeg -i "%%F" -i "!matching_sub!" -map 0:v? -map 0:a? -map 0:d? -map 0:t? -map 1:s -map_metadata 0 -map_chapters 0 -c copy "temp\%%F"
         if !error_level! equ 0 (
             echo Successfully created output file temp\%%F >> "%logfile%"
         ) else (
