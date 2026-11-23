@@ -7,6 +7,7 @@ setlocal EnableDelayedExpansion
 :: It also removes the pmode=1:pme=1 hevc parameters because they add 1-3% compression at the cost of possibly increasing CPU usage significantly, and were thus deemed not worth the tradeoff.
 :: Improve codec tag replacement for filenames with more options for both video and audio codecs
 :: Add variable bitrate for audio streams
+:: Add comment to audio stream
 
 set "scale_arg="
 
@@ -28,6 +29,7 @@ set "PIX_FORMAT=-pix_fmt yuv420p10le"
 set "HEVC_PARAMS=-x265-params bframes=4:rc-lookahead=40:ref=4"
 set "COMMENTS=-metadata comment="Re-encoded by ScreenPhantom 📺👻""
 set "COMMENTS=!COMMENTS! -metadata:s:v:0 comment="Re-encoded by ScreenPhantom 📺👻""
+set "COMMENTS=!COMMENTS! -metadata:s:a:0 comment="Re-encoded by ScreenPhantom 📺👻""
 
 :: Check if video file is provided and exists
 if "%VIDEO_FILE%"=="" (
