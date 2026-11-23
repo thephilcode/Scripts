@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FreeFileSync XmlType="BATCH" XmlFormat="23">
+    <Notes/>
+    <Compare>
+        <Variant>TimeAndSize</Variant>
+        <Symlinks>Exclude</Symlinks>
+        <IgnoreTimeShift/>
+    </Compare>
+    <Synchronize>
+        <Changes>
+            <Left Create="right" Update="right" Delete="none"/>
+            <Right Create="none" Update="none" Delete="none"/>
+        </Changes>
+        <DeletionPolicy>RecycleBin</DeletionPolicy>
+        <VersioningFolder Style="Replace"/>
+    </Synchronize>
+    <Filter>
+        <Include>
+            <Item>*</Item>
+            <Item>_Anime\*</Item>
+        </Include>
+        <Exclude>
+            <Item>\System Volume Information\</Item>
+            <Item>\$Recycle.Bin\</Item>
+            <Item>\RECYCLE?\</Item>
+            <Item>\Recovery\</Item>
+            <Item>*\thumbs.db</Item>
+            <Item>0*</Item>
+            <Item>1*</Item>
+            <Item>2*</Item>
+            <Item>3*</Item>
+            <Item>4*</Item>
+            <Item>5*</Item>
+            <Item>6*</Item>
+            <Item>7*</Item>
+            <Item>8*</Item>
+            <Item>9*</Item>
+            <Item>A*</Item>
+            <Item>B*</Item>
+            <Item>C*</Item>
+            <Item>D*</Item>
+            <Item>E*</Item>
+            <Item>F*</Item>
+            <Item>G*</Item>
+            <Item>H*</Item>
+            <Item>I*</Item>
+            <Item>J*</Item>
+            <Item>K*</Item>
+            <Item>L*</Item>
+            <Item>_Anime\0*</Item>
+            <Item>_Anime\1*</Item>
+            <Item>_Anime\2*</Item>
+            <Item>_Anime\3*</Item>
+            <Item>_Anime\4*</Item>
+            <Item>_Anime\5*</Item>
+            <Item>_Anime\6*</Item>
+            <Item>_Anime\7*</Item>
+            <Item>_Anime\8*</Item>
+            <Item>_Anime\9*</Item>
+            <Item>_Anime\A*</Item>
+            <Item>_Anime\B*</Item>
+            <Item>_Anime\C*</Item>
+            <Item>_Anime\D*</Item>
+            <Item>_Anime\E*</Item>
+            <Item>_Anime\F*</Item>
+            <Item>_Anime\G*</Item>
+            <Item>_Anime\H*</Item>
+            <Item>_Anime\I*</Item>
+            <Item>_Anime\J*</Item>
+            <Item>_Anime\K*</Item>
+            <Item>_Anime\L*</Item>
+            <Item>_Movies</Item>
+            <Item>*\temp_hevc</Item>
+            <Item>*\reencode_log.txt</Item>
+            <Item>*.parts</Item>
+            <Item>*.bat</Item>
+            <Item>*.complete</Item>
+        </Exclude>
+        <SizeMin Unit="None">0</SizeMin>
+        <SizeMax Unit="None">0</SizeMax>
+        <TimeSpan Type="None">0</TimeSpan>
+    </Filter>
+    <FolderPairs>
+        <Pair>
+            <Left>/mnt/storage/Media/Le Cinema</Left>
+            <Right>/mnt/f</Right>
+        </Pair>
+    </FolderPairs>
+    <Errors Ignore="false" Retry="0" Delay="5"/>
+    <PostSyncCommand Condition="Completion"/>
+    <LogFolder/>
+    <EmailNotification Condition="Always"/>
+    <GridViewType>Action</GridViewType>
+    <Batch>
+        <ProgressDialog Minimized="false" AutoClose="false"/>
+        <ErrorDialog>Show</ErrorDialog>
+        <PostSyncAction>None</PostSyncAction>
+    </Batch>
+</FreeFileSync>
